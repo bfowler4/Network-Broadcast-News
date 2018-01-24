@@ -52,6 +52,9 @@ const server = net.createServer((client) => {
       case `upVote`:
         upVoteUser(client, data);
         break;
+      case `downVote`:
+        downVoteUser(client, data);
+        break;
       default:
         broadcastMessage(client, data, address, port);
     }
@@ -203,10 +206,10 @@ function rateLimiter(client) {
 function upVoteUser(client, data) {
   let time = Date.now();
   if (time - client.lastUpVoteTime < 300000) {
-    client.write(`[ADMIN]: Error: You can only submit 1 up vote every 5 minutes`);
-    return;
+    client.write(`[ADMIN]: Error: You can only submit 1 up vote every 5 minutes.\n`);
+    return false;
   }
-  
+
   let upVoterIndex = clientList.indexOf(client);
   let upVoterUsername = usernames[upVoterIndex];
   let upVoteeUsername = data.split(` `).slice(1).join(` `).trim();
@@ -214,7 +217,7 @@ function upVoteUser(client, data) {
   let upVotee = clientList[upVoteeIndex];
   if (upVotee === client) {
     client.write(`[ADMIN]: Error: You can't up vote yourself`);
-    return;
+    return false;
   }
   if (upVoteeIndex > -1) {
     upVotee.userScore ++;
@@ -224,6 +227,34 @@ function upVoteUser(client, data) {
     return true;
   } else {
     client.write(`[ADMIN]: Error: ${upVoteeUsername} was not found. No up vote was given.\n`);
+    return false;
+  }
+}
+
+function downVoteUser(client, data) {
+  let time = Date.now();
+  if (time - client.lastDownVoteTime < 300000) {
+    client.write(`[ADMIN]: Error: You can only submit 1 down vote every 5 minutes.\n`)
+    return false;
+  }
+
+  let downVoterIndex = clientList.indexOf(client);
+  let downVoterUsername = usernames[downVoterIndex];
+  let downVoteeUsername = data.split(` `).slice(1).join(` `).trim();
+  let downVoteeIndex = usernames.indexOf(downVoteeUsername);
+  let downVotee = clientList[downVoteeIndex];
+  if (downVotee === client) {
+    client.write(`[ADMIN]: Error: You can't down vote yourself.\n`);
+    return false;
+  }
+  if (downVoteeIndex > -1) {
+    downVotee.userScore --;
+    console.log(`@${downVoteeUsername}(Score: ${downVotee.userScore}) HAS BEEN DOWN VOTED BY @${downVoterUsername}`);
+    client.write(`[ADMIN]: @${downVoteeUsername} has been down voted by you. They now have ${downVotee.userScore}.\n`);
+    client.lastDownVoteTime = time;
+    return true;
+  } else {
+    client.write(`[ADMIN]: Error: ${downVoteeUsername} was not found. No down vote was given.\n`);
     return false;
   }
 }
