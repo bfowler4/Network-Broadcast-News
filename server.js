@@ -2,7 +2,6 @@ const net = require(`net`);
 const colors = require(`colors`);
 const clientList = [];
 const usernames = [];
-const messageTimes = [];
 const userScores = [];
 const commandList = {
   changeUsername: true,
@@ -19,7 +18,7 @@ const server = net.createServer((client) => {
   client.setEncoding(`utf8`);
   clientList.push(client);
   usernames.push(``);
-  messageTimes.push([]);
+  client.messageTimes = [];
   userScores.push(0);
   client.write(menu);
 
@@ -185,16 +184,16 @@ function kickUserByIP(ipAddress) {
 function rateLimiter(client) {
   let index = clientList.indexOf(client);
   let time = Date.now();
-  if (messageTimes[index].length < 4) {
-    messageTimes[index].push(time);
+  if (client.messageTimes.length < 4) {
+    client.messageTimes.push(time);
     return true;
   } else {
-    if (time - messageTimes[index][0] < 1000) {
+    if (time - client.messageTimes[0] < 1000) {
       kickUserByIP(clientList[index].address().address);
       return false;
     } else {
-      messageTimes[index].shift();
-      messageTimes[index].push(time);
+      client.messageTimes.shift();
+      client.messageTimes.push(time);
       return true;
     }
   }
@@ -219,7 +218,6 @@ function upVoteUser(client, data) {
 function removeFromLists(index) {
   clientList.splice(index, 1);
   usernames.splice(index, 1);
-  messageTimes.splice(index, 1);
 }
 
 
