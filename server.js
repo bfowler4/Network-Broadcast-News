@@ -2,7 +2,6 @@ const net = require(`net`);
 const colors = require(`colors`);
 const clientList = [];
 const usernames = [];
-const userScores = [];
 const commandList = {
   changeUsername: true,
   message: true,
@@ -19,7 +18,7 @@ const server = net.createServer((client) => {
   clientList.push(client);
   usernames.push(``);
   client.messageTimes = [];
-  userScores.push(0);
+  client.userScore = 0;
   client.write(menu);
 
   client.on(`data`, (data) => {
@@ -202,15 +201,16 @@ function rateLimiter(client) {
 function upVoteUser(client, data) {
   let upVoterIndex = clientList.indexOf(client);
   let upVoter = usernames[upVoterIndex];
-  let upVotee = data.split(` `).slice(1).join(` `).trim();
-  let upVoteeIndex = usernames.indexOf(upVotee);
+  let upVoteeUsername = data.split(` `).slice(1).join(` `).trim();
+  let upVoteeIndex = usernames.indexOf(upVoteeUsername);
+  let upVotee = clientList[upVoteeIndex];
   if (upVoteeIndex > -1) {
-    userScores[upVoteeIndex] ++;
-    console.log(`@${upVotee}(Score: ${userScores[upVoteeIndex]}) HAS BEEN UP VOTED BY @${upVoter}`);
-    client.write(`[ADMIN]: @${upVotee} has been up voted by you. They now have ${userScores[upVoteeIndex]}.\n`);
+    upVotee.userScore ++;
+    console.log(`@${upVoteeUsername}(Score: ${upVotee.userScore}) HAS BEEN UP VOTED BY @${upVoter}`);
+    client.write(`[ADMIN]: @${upVoteeUsername} has been up voted by you. They now have ${upVotee.userScore}.\n`);
     return true;
   } else {
-    client.write(`[ADMIN]: Error: ${upVotee} was not found. No up vote was given.\n`);
+    client.write(`[ADMIN]: Error: ${upVoteeUsername} was not found. No up vote was given.\n`);
     return false;
   }
 }
