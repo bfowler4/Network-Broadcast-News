@@ -3,6 +3,12 @@ const colors = require(`colors`);
 const clientList = [];
 const usernames = [];
 const messageTimes = [];
+const commandList = {
+  changeUsername: true,
+  message: true,
+  commandList: true,
+  users: true
+};
 const server = net.createServer((client) => {
   let address = client.address().address;
   let port = client.address().port;
@@ -17,8 +23,14 @@ const server = net.createServer((client) => {
     if (!rateLimiter(client)) {
       return;
     }
-    if (usernames[clientList.indexOf(client)] === `` && !(data.startsWith(`@changeUsername`) || data.startsWith(`@commandList`))) {
+    let command = data.startsWith(`@`) ? data.split(` `)[0].slice(1) : false;
+    console.log(command);
+    if (usernames[clientList.indexOf(client)] === `` && !(command === `changeUsername` || command === `commandList`)) {
       client.write(`[ADMIN]: Error: Please set a user name using the '@changeUsername {username}' command before using chatroom.\n`);
+      return;
+    }
+    if (command && !commandList.hasOwnProperty(command)) {
+      client.write(`[ADMIN]: Error: Invalid command. Please try again.\n`);
       return;
     }
     if (data.startsWith(`@changeUsername`)) {
@@ -95,7 +107,7 @@ function sendMessage(client, data) {
     client.write(`[ADMIN]: Error: ${messageRecipient} was not found. Message was not sent.\n`);
     return false;
   } else {
-    clientList[recipientIndex].write(`[ADMIN]: *MESSAGE FROM @${usernames[senderIndex]}: ${message}\n`);
+    clientList[recipientIndex].write(`[ADMIN]: *MESSAGE FROM @${usernames[senderIndex]}: ${message}`);
     console.log(`DIRECT MESSAGE FROM ${usernames[senderIndex]} TO ${usernames[recipientIndex]}: ${message}`);
     return true;
   }
