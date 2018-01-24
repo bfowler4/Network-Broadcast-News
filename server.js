@@ -3,11 +3,14 @@ const colors = require(`colors`);
 const clientList = [];
 const usernames = [];
 const messageTimes = [];
+const userScores = [];
 const commandList = {
   changeUsername: true,
   message: true,
   commandList: true,
-  users: true
+  users: true,
+  upVote: true,
+  downVote: true
 };
 const server = net.createServer((client) => {
   let address = client.address().address;
@@ -17,14 +20,14 @@ const server = net.createServer((client) => {
   clientList.push(client);
   usernames.push(``);
   messageTimes.push([]);
+  userScores.push(0);
   client.write(menu);
 
   client.on(`data`, (data) => {
     if (!rateLimiter(client)) {
       return;
     }
-    let command = data.startsWith(`@`) ? data.split(` `)[0].slice(1) : false;
-    console.log(command);
+    let command = data.startsWith(`@`) ? data.split(` `)[0].slice(1).trim() : false;
     if (usernames[clientList.indexOf(client)] === `` && !(command === `changeUsername` || command === `commandList`)) {
       client.write(`[ADMIN]: Error: Please set a user name using the '@changeUsername {username}' command before using chatroom.\n`);
       return;
@@ -33,16 +36,24 @@ const server = net.createServer((client) => {
       client.write(`[ADMIN]: Error: Invalid command. Please try again.\n`);
       return;
     }
-    if (data.startsWith(`@changeUsername`)) {
-      changeUsername(client, data, address, port);
-    } else if (data.startsWith(`@message`)) {
-      sendMessage(client, data);
-    } else if (data.startsWith(`@commandList`)) {
-      client.write(menu);
-    } else if (data.startsWith(`@users`)) {
-      sendUserList(client);
-    } else {
-      broadcastMessage(client, data, address, port);
+    switch (command) {
+      case `changeUsername`:
+        changeUsername(client, data, address, port);
+        break;
+      case `message`:
+        sendMessage(client, data);
+        break;
+      case `commandList`:
+        client.write(menu);
+        break;
+      case `users`:
+        sendUserList(client);
+        break;
+      case `upVote`:
+        upVoteUser(client, data);
+        break;
+      default:
+        broadcastMessage(client, data, address, port);
     }
   });
 
@@ -78,6 +89,8 @@ const menu = `[ADMIN]: COMMAND LIST -
   @changeUsername newUserName : Sets your username to newUserName
   @message recipientUsername message : Sends message to recipientUsername
   @users : View list of users in the chat
+  @upVote user : Gives their user score a +1
+  @downVote user : Gives their user score a -1 (users are kicked at -7)
   @commandList : View command list\n`;
 
 function changeUsername(client, data, ipAddress, port) {
@@ -156,7 +169,7 @@ function kickUserByUsername(username) {
 }
 
 function kickUserByIP(ipAddress) {
-  for (let i = 0; i < clientList.length; i ++) {
+  for (let i = 0; i < clientList.length; i++) {
     if (clientList[i].address().address === ipAddress) {
       clientList[i].write(`[ADMIN]: CYA IDIOT!!!!!!!`);
       clientList[i].destroy();
@@ -184,6 +197,22 @@ function rateLimiter(client) {
       messageTimes[index].push(time);
       return true;
     }
+  }
+}
+
+function upVoteUser(client, data) {
+  let upVoterIndex = clientList.indexOf(client);
+  let upVoter = usernames[upVoterIndex];
+  let upVotee = data.split(` `).slice(1).join(` `).trim();
+  let upVoteeIndex = usernames.indexOf(upVotee);
+  if (upVoteeIndex > -1) {
+    userScores[upVoteeIndex] ++;
+    console.log(`@${upVotee}(Score: ${userScores[upVoteeIndex]}) HAS BEEN UP VOTED BY @${upVoter}`);
+    client.write(`[ADMIN]: @${upVotee} has been up voted by you. They now have ${userScores[upVoteeIndex]}.\n`);
+    return true;
+  } else {
+    client.write(`[ADMIN]: Error: ${upVotee} was not found. No up vote was given.\n`);
+    return false;
   }
 }
 
