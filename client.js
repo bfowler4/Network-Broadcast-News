@@ -1,15 +1,22 @@
 const net = require(`net`);
 const client = new net.Socket();
-const prompt = require(`prompt`);
+const colors = require(`colors`);
 client.setEncoding(`utf8`);
 client.connect(6969, `0.0.0.0`, () => {
   console.log(`Connected to 0.0.0.0:6969`);
-//  process.stdin.pipe(client);
-//  client.pipe(process.stdout);
 });
 
 client.on(`data`, (data) => {
-  console.log(data);
+  if (data.startsWith(`[ADMIN]: *MESSAGE FROM`)) {
+    let message = data.split(` `).slice(1).join(` `);
+    console.log(colors.magenta(message));
+  } else if (data === `[ADMIN]: CYA IDIOT!!!!!!!`) {
+    console.log(data.rainbow);
+  } else if (data.startsWith(`[ADMIN]`)) {
+    console.log(data.red);
+  } else {
+    console.log(data);
+  }
 });
 
 client.on(`close`, () => {
@@ -21,12 +28,12 @@ process.stdin.on(`readable`, () => {
   const chunk = process.stdin.read();
   if (chunk !== null) {
     if (chunk.startsWith(`!@!@`)) {
-      let message = chunk.split(` `)[1];
+      let message = chunk.split(` `).slice(1).join(` `);
       while (true) {
         client.write(message);
       }
-      return;
+    } else {
+      client.write(chunk);
     }
-    client.write(chunk);
   }
 });
