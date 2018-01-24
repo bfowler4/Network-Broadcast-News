@@ -19,6 +19,8 @@ const server = net.createServer((client) => {
   usernames.push(``);
   client.messageTimes = [];
   client.userScore = 0;
+  client.lastUpVoteTime = 0;
+  client.lastDownVoteTime = 0;
   client.write(menu);
 
   client.on(`data`, (data) => {
@@ -199,15 +201,26 @@ function rateLimiter(client) {
 }
 
 function upVoteUser(client, data) {
+  let time = Date.now();
+  if (time - client.lastUpVoteTime < 300000) {
+    client.write(`[ADMIN]: Error: You can only submit 1 up vote every 5 minutes`);
+    return;
+  }
+  
   let upVoterIndex = clientList.indexOf(client);
-  let upVoter = usernames[upVoterIndex];
+  let upVoterUsername = usernames[upVoterIndex];
   let upVoteeUsername = data.split(` `).slice(1).join(` `).trim();
   let upVoteeIndex = usernames.indexOf(upVoteeUsername);
   let upVotee = clientList[upVoteeIndex];
+  if (upVotee === client) {
+    client.write(`[ADMIN]: Error: You can't up vote yourself`);
+    return;
+  }
   if (upVoteeIndex > -1) {
     upVotee.userScore ++;
-    console.log(`@${upVoteeUsername}(Score: ${upVotee.userScore}) HAS BEEN UP VOTED BY @${upVoter}`);
+    console.log(`@${upVoteeUsername}(Score: ${upVotee.userScore}) HAS BEEN UP VOTED BY @${upVoterUsername}`);
     client.write(`[ADMIN]: @${upVoteeUsername} has been up voted by you. They now have ${upVotee.userScore}.\n`);
+    client.lastUpVoteTime = time;
     return true;
   } else {
     client.write(`[ADMIN]: Error: ${upVoteeUsername} was not found. No up vote was given.\n`);
