@@ -17,7 +17,6 @@
   },
   "homepage": "https://github.com/bfowler4/Network-Broadcast-News#readme",
   "dependencies": {
-    "colors": "^1.1.2",
-    "prompt": "^1.0.0"
+    "colors": "^1.1.2"
   }
 }
