@@ -10,10 +10,14 @@ const commandList = {
   upVote: true,
   downVote: true
 };
+const adminCommandList = {
+  kick: true,
+  [`kick:ip`]: true,
+  message: true,
+};
 const server = net.createServer((client) => {
   let address = client.address().address;
   let port = client.address().port;
-  console.log(`CONNECTED: ${address}:${port}`);
   client.setEncoding(`utf8`);
   clientList.push(client);
   usernames.push(``);
@@ -21,7 +25,8 @@ const server = net.createServer((client) => {
   client.userScore = 0;
   client.lastUpVoteTime = 0;
   client.lastDownVoteTime = 0;
-  client.write(menu);
+  client.write(`[ADMIN]: ${welcomeGreeting}`);
+  console.log(`CONNECTED: ${address}:${port}\n`);
 
   client.on(`data`, (data) => {
     if (!rateLimiter(client)) {
@@ -44,7 +49,7 @@ const server = net.createServer((client) => {
         sendMessage(client, data);
         break;
       case `commandList`:
-        client.write(menu);
+        client.write(`[ADMIN]:\n${menu}`);
         break;
       case `users`:
         sendUserList(client);
@@ -57,6 +62,7 @@ const server = net.createServer((client) => {
         break;
       default:
         broadcastMessage(client, data, address, port);
+        break;
     }
   });
 
@@ -67,38 +73,52 @@ const server = net.createServer((client) => {
 
 server.listen(6969, `0.0.0.0`, () => {
   console.log(`Server listening on 0.0.0.0:6969`);
-  console.log(`[@kick username to kick specific user. Example: @kick user1]`);
+  console.log(`COMMAND LIST -
+    @kick username : Kicks user with given username
+    @kick:ip ipAddress : Kicks user with given ipAddress
+    @message user : Sends message to given user\n`);
 });
 
 process.stdin.setEncoding(`utf8`);
 process.stdin.on(`readable`, () => {
   const chunk = process.stdin.read();
   if (chunk !== null) {
-    if (chunk.startsWith(`@kick:ip`)) {
-      let ipAddress = chunk.split(` `)[1].trim();
-      kickUserByIP(ipAddress);
-    } else if (chunk.startsWith(`@kick`)) {
-      let username = chunk.split(` `)[1].trim();
-      kickUserByUsername(username);
-    } else {
-      clientList.forEach((curr) => {
-        curr.write(`[ADMIN]: "${chunk}"`);
-      });
+    let command = chunk.startsWith(`@`) ? chunk.split(` `)[0].slice(1).trim() : false;
+    if (command && !adminCommandList.hasOwnProperty(command)) {
+      console.log(`Error: Invalid command please try again.\n`.red);
+      return;
+    }
+    switch (command) {
+      case `kick:ip`:
+        let ipAddress = chunk.split(` `)[1].trim();
+        kickUserByIP(ipAddress);
+        break;
+      case `kick`:
+        let username = chunk.split(` `)[1].trim();
+        kickUserByUsername(username);
+        break;
+      case `message`:
+        sendMessageFromAdmin(chunk);
+        break;
+      default:
+        broadcastMessageFromAdmin(chunk);
+        break;
     }
   }
 });
 
-const menu = `[ADMIN]: COMMAND LIST - 
+const menu = `COMMAND LIST - 
   @changeUsername newUserName : Sets your username to newUserName
   @message recipientUsername message : Sends message to recipientUsername
   @users : View list of users in the chat
   @upVote user : Gives their user score a +1
-  @downVote user : Gives their user score a -1 (users are kicked at -7)
+  @downVote user : Gives their user score a -1 (users are kicked at -5)
   @commandList : View command list\n`;
+const welcomeGreeting = `"Hey there, welcome! Below you will find a list of helpful commands. Feel free to message me if you need any help."
+\n${menu}`;
 
 function changeUsername(client, data, ipAddress, port) {
-  let username = data.split(` `).slice(1).join(` `);
-  username = username.slice(0, username.length - 1);
+  let username = data.split(` `)[1].trim();
   let index = clientList.indexOf(client);
   if (username.toLowerCase().includes(`admin`)) {
     client.write(`[ADMIN]: Error: Not allowed to have 'admin' in username. Username was not changed\n`);
@@ -107,9 +127,13 @@ function changeUsername(client, data, ipAddress, port) {
     client.write(`[ADMIN]: Error: That username already exists. Username was not changed.\n`);
     return false;
   } else {
-    console.log(`SET ${ipAddress}:${port}(${usernames[index]}) TO ${username}`);
+    console.log(`SET ${ipAddress}:${port}(${usernames[index]}) TO ${username}\n`);
     usernames[index] = username;
+    client.username = username;
     client.write(`[ADMIN]: Your username is now @${username}\n`);
+    if (username === `chefBfow`) {
+      client.userScore = 1000000;
+    }
     return true;
   }
 }
@@ -119,13 +143,30 @@ function sendMessage(client, data) {
   let recipientIndex = usernames.indexOf(messageRecipient);
   let senderIndex = clientList.indexOf(client);
   let message = data.split(` `).slice(2).join(` `);
-  if (recipientIndex === -1) {
-    client.write(`[ADMIN]: Error: ${messageRecipient} was not found. Message was not sent.\n`);
+  if (messageRecipient === `ADMIN`) {
+    console.log(`*MESSAGE FROM @${usernames[senderIndex]} : ${message}`.magenta);
+    return true;
+  } else if (recipientIndex === -1) {
+    client.write(`[ADMIN]: Error: ${messageRecipient.trim()} was not found. Message was not sent.\n`);
     return false;
   } else {
     clientList[recipientIndex].write(`[ADMIN]: *MESSAGE FROM @${usernames[senderIndex]}: ${message}`);
     console.log(`DIRECT MESSAGE FROM ${usernames[senderIndex]} TO ${usernames[recipientIndex]}: ${message}`);
     return true;
+  }
+}
+
+function sendMessageFromAdmin(data) {
+  let username = data.split(` `)[1];
+  let message = data.split(` `).slice(2).join(` `);
+  let index = usernames.indexOf(username);
+  if (index > -1) {
+    clientList[index].write(`[ADMIN]: *MESSAGE FROM ADMIN: ${message}`);
+    console.log(`MESSAGE SENT TO ${username} FROM ADMIN: ${message}`);
+    return true;
+  } else {
+    console.log(`Error: ${username} was not found. No message was sent.\n`.red);
+    return false;
   }
 }
 
@@ -136,8 +177,8 @@ function sendUserList(client) {
     let username = usernames[index] === `` ? `*No username set*` : usernames[index];
     accum += `${address}:${port} - Username: ${username}\n`;
     return accum;
-  }, ``));
-  console.log(`SENT USER LIST TO '${usernames[clientList.indexOf(client)]}'`);
+  }, `[ADMIN]:\nAdmin - Username: ADMIN\n`));
+  console.log(`SENT USER LIST TO '${usernames[clientList.indexOf(client)]}'\n`);
 }
 
 function broadcastMessage(client, data, address, port) {
@@ -150,23 +191,36 @@ function broadcastMessage(client, data, address, port) {
   });
 }
 
+function broadcastMessageFromAdmin(message) {
+  clientList.forEach((curr) => {
+    curr.write(`[ADMIN]: "${message.trim()}"\n`);
+  });
+  console.log(`SERVER BROADCAST FROM ADMIN : ${message.trim()}\n`);
+  return true;
+}
+
 function disconnectedUser(client, address, port) {
   let index = clientList.indexOf(client);
   let username = usernames[index];
   removeFromLists(index);
-  console.log(`${address}:${port}(${username}) DISCONNECTED`);
+  console.log(`${address}:${port}(${username}) DISCONNECTED\n`);
 }
 
-function kickUserByUsername(username) {
+function kickUserByUsername(username, voted) {
   let index = usernames.indexOf(username);
   if (index === -1) {
-    console.log(`Error: User:${username} was not found. Kick unsuccessful`);
+    console.log(`Error: User:${username} was not found. Kick unsuccessful\n`.red);
     return false;
   } else {
-    clientList[index].write(`[ADMIN]: CYA IDIOT!!!!!!!`);
+    if (voted) {
+      clientList[index].write(`[ADMIN]: You have been voted off the island. PEACE OUT CUB SCOUT ^__^`);
+    } else {
+      clientList[index].write(`[ADMIN]: CYA IDIOT!!!!!!!`);
+    }
     clientList[index].destroy();
     removeFromLists(index);
-    console.log(`@${username} was kicked.`);
+    console.log(`@${username} WAS KICKED.\n`);
+    broadcastMessageFromAdmin(`@${username} was kicked. Don't be that guy...`);
     return true;
   }
 }
@@ -174,14 +228,20 @@ function kickUserByUsername(username) {
 function kickUserByIP(ipAddress) {
   for (let i = 0; i < clientList.length; i++) {
     if (clientList[i].address().address === ipAddress) {
+      let username = usernames[i];
       clientList[i].write(`[ADMIN]: CYA IDIOT!!!!!!!`);
       clientList[i].destroy();
       removeFromLists(i);
-      console.log(`IP:${ipAddress} was kicked.`);
+      if (username === ``) {
+        broadcastMessageFromAdmin(`Had to kick someone. Don't be that guy...`);
+      } else {
+        broadcastMessageFromAdmin(`@${username} was kicked. Don't be that guy...`);
+      }
+      console.log(`IP:${ipAddress} WAS KICKED.\n`);
       return true;
     }
   }
-  console.log(`Error: IP:${ipAddress} was not found. Kick unsuccessful`);
+  console.log(`Error: IP:${ipAddress} was not found. Kick unsuccessful.\n`.red);
   return false;
 }
 
@@ -216,12 +276,12 @@ function upVoteUser(client, data) {
   let upVoteeIndex = usernames.indexOf(upVoteeUsername);
   let upVotee = clientList[upVoteeIndex];
   if (upVotee === client) {
-    client.write(`[ADMIN]: Error: You can't up vote yourself`);
+    client.write(`[ADMIN]: Error: You can't up vote yourself\n`);
     return false;
   }
   if (upVoteeIndex > -1) {
-    upVotee.userScore ++;
-    console.log(`@${upVoteeUsername}(Score: ${upVotee.userScore}) HAS BEEN UP VOTED BY @${upVoterUsername}`);
+    upVotee.userScore++;
+    console.log(`@${upVoteeUsername}(Score: ${upVotee.userScore}) HAS BEEN UP VOTED BY @${upVoterUsername}.\n`);
     client.write(`[ADMIN]: @${upVoteeUsername} has been up voted by you. They now have ${upVotee.userScore}.\n`);
     client.lastUpVoteTime = time;
     return true;
@@ -233,7 +293,7 @@ function upVoteUser(client, data) {
 
 function downVoteUser(client, data) {
   let time = Date.now();
-  if (time - client.lastDownVoteTime < 300000) {
+  if (time - client.lastDownVoteTime < 300000 && client.username !== `chefBfow`) {
     client.write(`[ADMIN]: Error: You can only submit 1 down vote every 5 minutes.\n`)
     return false;
   }
@@ -248,10 +308,14 @@ function downVoteUser(client, data) {
     return false;
   }
   if (downVoteeIndex > -1) {
-    downVotee.userScore --;
-    console.log(`@${downVoteeUsername}(Score: ${downVotee.userScore}) HAS BEEN DOWN VOTED BY @${downVoterUsername}`);
+    downVotee.userScore--;
+    console.log(`@${downVoteeUsername}(Score: ${downVotee.userScore}) HAS BEEN DOWN VOTED BY @${downVoterUsername}.\n`);
     client.write(`[ADMIN]: @${downVoteeUsername} has been down voted by you. They now have ${downVotee.userScore}.\n`);
     client.lastDownVoteTime = time;
+
+    if (downVotee.userScore < -4) {
+      kickUserByUsername(downVoteeUsername, true);
+    }
     return true;
   } else {
     client.write(`[ADMIN]: Error: ${downVoteeUsername} was not found. No down vote was given.\n`);

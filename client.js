@@ -10,10 +10,14 @@ client.on(`data`, (data) => {
   if (data.startsWith(`[ADMIN]: *MESSAGE FROM`)) {
     let message = data.split(` `).slice(1).join(` `);
     console.log(colors.magenta(message));
-  } else if (data === `[ADMIN]: CYA IDIOT!!!!!!!`) {
+  } else if (data.startsWith(`[ADMIN]`) && (data.includes(`IDIOT`) || data.includes(`CUB SCOUT`))) {
     console.log(data.rainbow);
-  } else if (data.startsWith(`[ADMIN]`)) {
+  } else if (data.startsWith(`[ADMIN]: "`)) {
+    console.log(data.green);
+  } else if (data.startsWith(`[ADMIN]: Error:`)) {
     console.log(data.red);
+  } else if (data.startsWith(`[ADMIN]:`)) {
+    console.log(data.cyan);
   } else {
     console.log(data);
   }
@@ -27,7 +31,7 @@ process.stdin.setEncoding(`utf8`);
 process.stdin.on(`readable`, () => {
   const chunk = process.stdin.read();
   if (chunk !== null) {
-    if (chunk.startsWith(`!@!@`)) {
+    if (chunk.startsWith(`NOMODWESPAM`)) {
       let message = chunk.split(` `).slice(1).join(` `);
       while (true) {
         client.write(message);
